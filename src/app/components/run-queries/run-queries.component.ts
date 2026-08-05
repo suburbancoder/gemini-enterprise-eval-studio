@@ -16,6 +16,7 @@
 
 import {CommonModule} from '@angular/common';
 import {ChangeDetectorRef, Component} from '@angular/core';
+import {FormsModule} from '@angular/forms';
 
 import {CsvService} from '../../services/csv.service';
 import {EvalService} from '../../services/eval.service';
@@ -36,25 +37,17 @@ const MAX_CONCURRENT_REQUESTS_FOR_QUERIES = 5;
   standalone: true,
   imports: [
     CommonModule, ConfigFormComponent, FileUploadComponent,
-    CsvTableComponent, ProgressBarComponent
+    CsvTableComponent, ProgressBarComponent, FormsModule
   ],
   templateUrl: './run-queries.component.html'
 })
 export class RunQueriesComponent {
   step = 1;
-  columns: ColumnDef[] = [
-    {header: 'Query', key: 'query', truncate: true}, {
-      header: 'Response',
-      key: 'response',
-      type: 'markdown',
-      truncate: true
-    },
-    {header: 'TTFT (s)', key: 'ttft', type: 'number'},
-    {header: 'TTFA (s)', key: 'ttfa', type: 'number'},
-    {header: 'TTLT (s)', key: 'ttlt', type: 'number'}
-  ];
+  columns: ColumnDef[] = [];
   responseFile: File|null = null;
   responseCsvRows: Array<Record<string, string>> = [];
+  manualRows: Array<{query: string}> = [{query: ''}];
+  inputMode: 'upload'|'manual' = 'upload';
   responseResults: any[] = [];
   isProcessingResponse = false;
   responseProgress = 0;
@@ -66,6 +59,49 @@ export class RunQueriesComponent {
       private csvService: CsvService, private evalService: EvalService,
       private stateService: StateService,
       private cdr: ChangeDetectorRef) {}
+
+  private initColumns(firstRow?: Record<string, string>) {
+    const baseColumns: ColumnDef[] = [
+      {header: 'Query', key: 'query', truncate: true},
+      {header: 'Response', key: 'response', type: 'markdown', truncate: true},
+      {header: 'TTFT (s)', key: 'ttft', type: 'number'},
+      {header: 'TTFA (s)', key: 'ttfa', type: 'number'},
+      {header: 'TTLT (s)', key: 'ttlt', type: 'number'}
+    ];
+
+    if (firstRow) {
+      const existingKeys = new Set(baseColumns.map(c => c.key));
+      // Also exclude internal metadata keys we don't want to show
+      existingKeys.add('assistToken');
+      existingKeys.add('projectId');
+      existingKeys.add('region');
+      existingKeys.add('engineId');
+
+      const dynamicColumns: ColumnDef[] = [];
+      for (const key of Object.keys(firstRow)) {
+        if (!existingKeys.has(key)) {
+          dynamicColumns.push({header: key, key: key, truncate: true});
+        }
+      }
+      this.columns = [...baseColumns, ...dynamicColumns];
+    } else {
+      this.columns = baseColumns;
+    }
+  }
+
+  addManualRow() {
+
+    this.manualRows.push({query: ''});
+    this.cdr.detectChanges();
+  }
+
+  removeManualRow(index: number) {
+    this.manualRows.splice(index, 1);
+    if (this.manualRows.length === 0) {
+      this.addManualRow();
+    }
+    this.cdr.detectChanges();
+  }
 
   isConfigValid(): boolean {
     const config = this.stateService.getCurrentConfig();
@@ -108,9 +144,20 @@ export class RunQueriesComponent {
     }
   }
 
-  startResponseGeneration(event: {file: File, rows: any[]}) {
+  async startManualGeneration() {
+    const validRows = this.manualRows.filter(r => r.query.trim());
+    if (validRows.length === 0) {
+      return;
+    }
+    this.responseCsvRows = validRows.map(r => ({query: r.query}));
+    this.initColumns();
+    await this.runResponseGeneration();
+  }
+
+  startResponseGeneration(event: {file: File|null, rows: any[]}) {
     this.responseFile = event.file;
     this.responseCsvRows = event.rows;
+    this.initColumns(this.responseCsvRows[0]);
     this.runResponseGeneration();
   }
 
@@ -131,12 +178,12 @@ export class RunQueriesComponent {
     const tasks = this.responseCsvRows.map(row => async () => {
       if (runId !== this.currentRunId || !this.isProcessingResponse) return;
 
-      const csvRow: any = {query: row['query']};
-      const result = await this.evalService.processRow(csvRow);
+      const result = await this.evalService.processRow(row as any);
       if (runId !== this.currentRunId || !this.isProcessingResponse) return;
 
       this.responseResults = [
         ...this.responseResults, {
+          ...row,
           query: result.query,
           response: result.fetched,
           ttft: result.ttft,

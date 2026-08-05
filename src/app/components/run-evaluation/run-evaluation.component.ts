@@ -50,7 +50,9 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
   progress = 0;
   results: any[] = [];
   uploadedFile: File|null = null;
-  uploadedRows: any[] = [];
+  uploadedRows: CSVRow[] = [];
+  manualRows: CSVRow[] = [{query: '', golden: ''}];
+  inputMode: 'upload'|'manual' = 'upload';
   totalRows = 0;
   completedRows = 0;
   showReRateModal = false;
@@ -59,15 +61,7 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private currentRunId = 0;
 
-  columns: ColumnDef[] = [
-    {header: 'Query', key: 'query', truncate: true},
-    {header: 'Golden', key: 'golden', truncate: true},
-    {header: 'Fetched', key: 'fetched', type: 'markdown', truncate: true},
-    {header: 'TTFT (s)', key: 'ttft', type: 'number'},
-    {header: 'TTFA (s)', key: 'ttfa', type: 'number'},
-    {header: 'TTLT (s)', key: 'ttlt', type: 'number'},
-    {header: 'Score', key: 'score', type: 'score'}
-  ];
+  columns: ColumnDef[] = [];
 
   constructor(
       private stateService: StateService, private evalService: EvalService,
@@ -75,12 +69,62 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.stateService.results$.pipe(takeUntil(this.destroy$))
-        .subscribe(r => this.results = r);
+        .subscribe(r => {
+          this.results = r;
+          if (this.results.length > 0 && this.columns.length === 0) {
+            this.initColumns(this.results[0]);
+          }
+        });
+  }
+
+  private initColumns(firstRow?: any) {
+    const baseColumns: ColumnDef[] = [
+      {header: 'Query', key: 'query', truncate: true},
+      {header: 'Golden', key: 'golden', truncate: true},
+      {header: 'Fetched', key: 'fetched', type: 'markdown', truncate: true},
+      {header: 'TTFT (s)', key: 'ttft', type: 'number'},
+      {header: 'TTFA (s)', key: 'ttfa', type: 'number'},
+      {header: 'TTLT (s)', key: 'ttlt', type: 'number'},
+      {header: 'Score', key: 'score', type: 'score'}
+    ];
+
+    if (firstRow) {
+      const existingKeys = new Set(baseColumns.map(c => c.key));
+      existingKeys.add('assistToken');
+      existingKeys.add('projectId');
+      existingKeys.add('region');
+      existingKeys.add('engineId');
+      existingKeys.add('scoreError');
+      existingKeys.add('debugLogs');
+
+      const dynamicColumns: ColumnDef[] = [];
+      for (const key of Object.keys(firstRow)) {
+        if (!existingKeys.has(key)) {
+          dynamicColumns.push({header: key, key: key, truncate: true});
+        }
+      }
+      this.columns = [...baseColumns, ...dynamicColumns];
+    } else {
+      this.columns = baseColumns;
+    }
   }
 
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  addManualRow() {
+    this.manualRows.push({query: '', golden: ''});
+    this.cdr.detectChanges();
+  }
+
+  removeManualRow(index: number) {
+    this.manualRows.splice(index, 1);
+    if (this.manualRows.length === 0) {
+      this.addManualRow();
+    }
+    this.cdr.detectChanges();
   }
 
   isConfigValid(): boolean {
@@ -122,11 +166,21 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
     if (this.step > 1) this.step--;
   }
 
+  async startManualEvaluation() {
+    const validRows = this.manualRows.filter(r => r.query.trim());
+    if (validRows.length === 0) {
+      this.errorMessage = 'Please enter at least one query.';
+      return;
+    }
+    this.initColumns(validRows[0]);
+    await this.startEvaluation({file: null, rows: validRows});
+  }
+
   /**
    * Starts the evaluation process for the uploaded CSV rows.
    * @param event The event containing the file and parsed rows.
    */
-  async startEvaluation(event: {file: File, rows: CSVRow[]}) {
+  async startEvaluation(event: {file: File|null, rows: CSVRow[]}) {
     if (this.isProcessing) return;
     const runId = ++this.currentRunId;
     this.errorMessage = null;
@@ -135,11 +189,17 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
     this.totalRows = event.rows.length;
     this.completedRows = 0;
     this.step = 3;
+    if (event.rows.length > 0) {
+      this.initColumns(event.rows[0]);
+    }
     this.stateService.setResults([]);
     this.cdr.detectChanges();
     const results: ResultRow[] = [];
 
-    if (this.totalRows === 0) return;
+    if (this.totalRows === 0) {
+      this.isProcessing = false;
+      return;
+    }
 
     const tasks = event.rows.map(row => async () => {
       if (runId !== this.currentRunId || !this.isProcessing) return;
@@ -152,7 +212,10 @@ export class RunEvaluationComponent implements OnInit, OnDestroy {
             `Scoring failed for some rows: ${result.scoreError}`;
       }
 
-      results.push(result);
+      results.push({
+        ...row,
+        ...result
+      });
       this.stateService.setResults(results);
       this.completedRows++;
       this.progress = Math.round((this.completedRows / this.totalRows) * 100);

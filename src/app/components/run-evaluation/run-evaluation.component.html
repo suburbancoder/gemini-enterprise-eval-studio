@@ -62,17 +62,105 @@
     <app-config-form (next)="nextStep()"></app-config-form>
   </div>
 
-  <!-- File Upload -->
+  <!-- Input Section -->
   <div [hidden]="step !== 2">
-    <app-file-upload
-      [(file)]="uploadedFile"
-      [(csvRows)]="uploadedRows"
-      (prev)="prevStep()"
-      (run)="startEvaluation($event)"
-      [instruction]="'CSV file with at least \'query\' and \'golden\' columns'"
-      [buttonText]="'Run Evaluation'"
-      [requiredColumns]="['query', 'golden']"
-    ></app-file-upload>
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-4xl mx-auto">
+      <div class="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+        <h3 class="text-lg font-medium text-gray-800">Add Evaluation Data</h3>
+        <div class="flex bg-gray-100 p-1 rounded-lg">
+          <button
+            (click)="inputMode = 'upload'"
+            [ngClass]="{'bg-white shadow-sm text-blue-600': inputMode === 'upload', 'text-gray-500 hover:text-gray-700': inputMode !== 'upload'}"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
+          >
+            CSV Upload
+          </button>
+          <button
+            (click)="inputMode = 'manual'"
+            [ngClass]="{'bg-white shadow-sm text-blue-600': inputMode === 'manual', 'text-gray-500 hover:text-gray-700': inputMode !== 'manual'}"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
+          >
+            Manual Entry
+          </button>
+        </div>
+      </div>
+
+      <!-- CSV Upload Mode -->
+      <div *ngIf="inputMode === 'upload'">
+        <app-file-upload
+          [(file)]="uploadedFile"
+          [(csvRows)]="uploadedRows"
+          (prev)="prevStep()"
+          (run)="startEvaluation($event)"
+          [instruction]="'CSV file with at least \'query\' and \'golden\' columns'"
+          [buttonText]="'Run Evaluation'"
+          [requiredColumns]="['query']"
+        ></app-file-upload>
+      </div>
+
+      <!-- Manual Entry Mode -->
+      <div *ngIf="inputMode === 'manual'" class="space-y-4">
+        <div class="max-h-[500px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+          <div *ngFor="let row of manualRows; let i = index" class="p-4 bg-gray-50 rounded-lg border border-gray-200 relative group animate-fade-in">
+            <button
+              (click)="removeManualRow(i)"
+              class="absolute top-2 right-2 text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
+              title="Delete row"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+            <div class="grid grid-cols-1 gap-4 mr-8">
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Query</label>
+                <textarea
+                  [(ngModel)]="row.query"
+                  rows="2"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  placeholder="Enter user query..."
+                ></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Golden (Optional)</label>
+                <textarea
+                  [(ngModel)]="row.golden"
+                  rows="2"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  placeholder="Enter ground truth response..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          (click)="addManualRow()"
+          class="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center space-x-2 group"
+        >
+          <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          <span class="font-medium">Add Another Row</span>
+        </button>
+
+        <div class="flex justify-between mt-8 pt-6 border-t border-gray-100">
+          <button
+            (click)="prevStep()"
+            class="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-50 transition-colors font-medium"
+          >
+            Back
+          </button>
+          <button
+            (click)="startManualEvaluation()"
+            [disabled]="manualRows.length === 0 || !manualRows[0].query.trim()"
+            class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition-colors font-medium disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed shadow-md"
+          >
+            Run Evaluation
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Results Table -->

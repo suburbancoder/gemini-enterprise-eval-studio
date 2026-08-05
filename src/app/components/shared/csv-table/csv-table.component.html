@@ -11,13 +11,15 @@
       Export CSV
     </button>
   </div>
-  <div class="border-t border-gray-200 overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
+  <div class="border-t border-gray-200 overflow-auto max-h-[700px] custom-scrollbar">
+    <table class="min-w-full divide-y divide-gray-200 table-fixed">
+      <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
         <tr>
           <th
             *ngFor="let col of columns"
-            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+            [style.width]="col.key === 'query' || col.key === 'response' || col.key === 'fetched' ? '400px' : 'auto'"
+            [style.min-width]="col.key === 'query' || col.key === 'response' || col.key === 'fetched' ? '400px' : '150px'"
           >
             {{ col.header }}
           </th>
@@ -25,7 +27,7 @@
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         <tr *ngFor="let row of data; let i = index" class="hover:bg-gray-50 transition-colors">
-          <td *ngFor="let col of columns" class="px-6 py-4 text-sm text-gray-500">
+          <td *ngFor="let col of columns" class="px-6 py-4 text-sm text-gray-500 break-words">
             <!-- Text Type -->
             <div
               *ngIf="!col.type || col.type === 'text'"
