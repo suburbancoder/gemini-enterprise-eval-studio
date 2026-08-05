@@ -94,6 +94,32 @@ export class EvalService {
     const region = config.region;
     const rawEngineId = config.selectedEngine;
 
+    const rawToken = (config.gCloudToken || '').trim();
+    const cleanToken = rawToken.replace(/^Bearer\s+/i, '');
+
+    if (!cleanToken) {
+      const msg = 'Missing Google Cloud Access Token. Please provide a valid token from `gcloud auth print-access-token`.';
+      console.error(`[EvalService] ${msg}`);
+      throw new Error(msg);
+    }
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${cleanToken}`,
+      'Content-Type': 'application/json'
+    };
+    if (config.projectId) {
+      headers['x-goog-user-project'] = config.projectId.trim();
+    }
+
+    console.log(`[EvalService] Executing widgetStreamAssist request to: ${url}`, {
+      projectId: config.projectId,
+      region: config.region,
+      engineId,
+      query: row.query,
+      tokenPrefix: cleanToken.substring(0, 10) + '...',
+      requestBody: body
+    });
+
     const startTime = Date.now();
     let ttft = 0;
     let ttfa = 0;
@@ -106,23 +132,46 @@ export class EvalService {
       onProgress?.('fetch');
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.gCloudToken}`,
-          'x-goog-user-project': config.projectId,
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(body)
       });
 
       if (!response.ok) {
-        if (response.status === 429) {
+        let errorDetails = '';
+        try {
           const errorData = await response.json();
-          assistToken = errorData.details?.[0]?.assistToken || 'unknown';
-          const reason =
-              errorData.details?.[0]?.reason || 'Rate limit exceeded';
-          throw new Error(`Rate limited: ${reason}`);
+          console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status}:`, JSON.stringify(errorData, null, 2));
+          if (errorData.error?.message) {
+            errorDetails = `: ${errorData.error.message}`;
+          } else if (errorData.message) {
+            errorDetails = `: ${errorData.message}`;
+          } else if (errorData.details?.[0]?.reason) {
+            errorDetails = `: ${errorData.details[0].reason}`;
+          }
+          if (response.status === 429 && errorData.details?.[0]?.assistToken) {
+            assistToken = errorData.details[0].assistToken;
+          }
+        } catch (e) {
+          try {
+            const rawText = await response.text();
+            console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status} (raw body):`, rawText);
+            if (rawText) {
+              errorDetails = `: ${rawText}`;
+            }
+          } catch (e2) {
+            console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status} (could not read body)`);
+          }
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+
+        if (response.status === 401) {
+          throw new Error(`HTTP 401 Unauthorized${errorDetails}. Please verify your access token is fresh (run 'gcloud auth print-access-token') and that your project/location configuration is correct.`);
+        } else if (response.status === 403) {
+          throw new Error(`HTTP 403 Forbidden${errorDetails}. Please check your Google Cloud project permissions.`);
+        } else if (response.status === 429) {
+          throw new Error(`HTTP 429 Rate limited${errorDetails}.`);
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}${errorDetails}`);
+        }
       }
 
       const reader = response.body!.getReader();

@@ -256,6 +256,29 @@ describe('EvalService', () => {
       expect(result.fetched).toBe('Response from widgetStreamAssist');
     });
 
+    it('should format 401 Unauthorized error message and log details', async () => {
+      spyOn(globalThis, 'fetch').and.returnValue(Promise.resolve(new Response(JSON.stringify({
+        error: {
+          code: 401,
+          message: 'Request had invalid authentication credentials. Expected OAuth 2 access token.',
+          status: 'UNAUTHENTICATED'
+        }
+      }), {
+        status: 401,
+        statusText: 'Unauthorized'
+      })));
+
+      spyOn(service['stateService'], 'getCurrentConfig').and.returnValue(config);
+
+      const result = await service.processRow({
+        query: 'my query',
+        golden: ''
+      });
+
+      expect(result.fetched).toContain('HTTP 401 Unauthorized: Request had invalid authentication credentials');
+      expect(result.fetched).toContain('gcloud auth print-access-token');
+    });
+
     it('should preserve the fetched text if scoring throws an error', async () => {
       let fetchCount = 0;
       spyOn(globalThis, 'fetch').and.callFake((input, init) => {
