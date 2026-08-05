@@ -246,13 +246,11 @@ describe('EvalService', () => {
         golden: ''
       });
 
-      expect(capturedUrl).toBe('https://content-eu-discoveryengine.googleapis.com/v1alpha/locations/eu/widgetStreamAssist');
-      expect(capturedBody.configId).toBe('60b725bb-724a-4585-ae6f-dd120e8dde94');
-      expect(capturedBody.additionalParams).toEqual({token: '-', origin: 'ORIGIN_UNSPECIFIED'});
-      expect(capturedBody.streamAssistRequest.session).toBe('projects/my-project/locations/eu/collections/default_collection/engines/my-engine/sessions/-');
-      expect(capturedBody.streamAssistRequest.query.parts[0].text).toBe('test query');
-      expect(capturedBody.streamAssistRequest.assistGenerationConfig.modelId).toBe('gemini-3.5-flash');
-      expect(capturedBody.streamAssistRequest.toolsSpec.vertexAiSearchSpec.dataStoreSpecs[0].dataStore).toBe('projects/my-project/locations/eu/collections/default_collection/dataStores/ds-1');
+      expect(capturedUrl).toBe('https://eu-discoveryengine.googleapis.com/v1alpha/projects/my-project/locations/eu/collections/default_collection/engines/my-engine/assistants/default_assistant:streamAssist');
+      expect(capturedBody.session).toBe('projects/my-project/locations/eu/collections/default_collection/engines/my-engine/sessions/-');
+      expect(capturedBody.query.parts[0].text).toBe('test query');
+      expect(capturedBody.assistGenerationConfig.modelId).toBe('gemini-3.5-flash');
+      expect(capturedBody.toolsSpec.vertexAiSearchSpec.dataStoreSpecs[0].dataStore).toBe('projects/my-project/locations/eu/collections/default_collection/dataStores/ds-1');
       expect(result.fetched).toBe('Response from widgetStreamAssist');
     });
 

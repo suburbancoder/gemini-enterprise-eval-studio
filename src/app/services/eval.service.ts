@@ -43,16 +43,16 @@ export class EvalService {
     const rawEngineId = config.selectedEngine;
 
     const baseUrl = config.region === 'global' ?
-        'content-discoveryengine.googleapis.com' :
-        `content-${config.region}-discoveryengine.googleapis.com`;
-
-    const url = `https://${baseUrl}/v1alpha/locations/${config.region}/widgetStreamAssist`;
+        'discoveryengine.googleapis.com' :
+        `${config.region}-discoveryengine.googleapis.com`;
 
     const engineId = config.selectedEngine.includes('/') ?
         config.selectedEngine.split('/').pop()! : config.selectedEngine;
 
-    const streamAssistRequest: any = {
-      session: `collections/default_collection/engines/${engineId}/sessions/-`,
+    const url = `https://${baseUrl}/v1alpha/projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/assistants/default_assistant:streamAssist`;
+
+    const body: any = {
+      session: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/sessions/-`,
       query: {
         parts: [{text: row.query}]
       },
@@ -65,33 +65,24 @@ export class EvalService {
     };
 
     if (config.selectedModel !== 'auto') {
-      streamAssistRequest.assistGenerationConfig = {modelId: config.selectedModel};
+      body.assistGenerationConfig = {modelId: config.selectedModel};
     }
 
     if (config.selectedDataStores && config.selectedDataStores.length > 0) {
-      streamAssistRequest.toolsSpec.vertexAiSearchSpec = {
+      body.toolsSpec.vertexAiSearchSpec = {
         dataStoreSpecs: config.selectedDataStores.map(
             ds => {
               const dsId = ds.includes('/') ? ds.split('/').pop()! : ds;
-              return { dataStore: `collections/default_collection/dataStores/${dsId}` };
+              return { dataStore: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/dataStores/${dsId}` };
             })
       };
     } else if (!config.enableWebSearch) {
-      streamAssistRequest.toolsSpec.vertexAiSearchSpec = {};
+      body.toolsSpec.vertexAiSearchSpec = {};
     }
 
     if (config.enableWebSearch) {
-      streamAssistRequest.toolsSpec.webGroundingSpec = {};
+      body.toolsSpec.webGroundingSpec = {};
     }
-
-    const body: any = {
-      configId: config.widgetConfigId || '60b725bb-724a-4585-ae6f-dd120e8dde94',
-      additionalParams: {
-        token: '-',
-        origin: 'ORIGIN_UNSPECIFIED'
-      },
-      streamAssistRequest
-    };
 
     const debugLogs: string[] = [];
     const log = (msg: string, data?: any) => {
