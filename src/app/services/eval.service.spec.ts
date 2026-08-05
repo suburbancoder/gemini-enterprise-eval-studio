@@ -206,6 +206,56 @@ describe('EvalService', () => {
       enableWebSearch: false
     };
 
+    it('should format widgetStreamAssist URL and body correctly', async () => {
+      let capturedUrl = '';
+      let capturedBody: any = null;
+
+      spyOn(globalThis, 'fetch').and.callFake((input, init) => {
+        capturedUrl = input.toString();
+        capturedBody = JSON.parse(init?.body as string);
+        return Promise.resolve(new Response(JSON.stringify([{
+          streamAssistResponse: {
+            answer: {
+              replies: [{
+                groundedContent: {
+                  content: {
+                    text: 'Response from widgetStreamAssist'
+                  }
+                }
+              }]
+            }
+          }
+        }])));
+      });
+
+      const testConfig: AppConfig = {
+        gCloudToken: 'token-123',
+        projectId: 'my-project',
+        region: 'eu',
+        selectedEngine: 'my-engine',
+        selectedModel: 'gemini-3.5-flash',
+        autoRaterModel: 'gemini-3.5-flash',
+        autoRaterInstruction: 'instructions',
+        selectedDataStores: ['ds-1'],
+        enableWebSearch: false
+      };
+      spyOn(service['stateService'], 'getCurrentConfig').and.returnValue(testConfig);
+
+      const result = await service.processRow({
+        query: 'test query',
+        golden: ''
+      });
+
+      expect(capturedUrl).toBe('https://content-eu-discoveryengine.googleapis.com/v1alpha/locations/eu/widgetStreamAssist');
+      expect(capturedBody.configId).toBe('default_search_widget_config');
+      expect(capturedBody.additionalParams).toEqual({token: '-', origin: 'ORIGIN_UNSPECIFIED'});
+      expect(capturedBody.streamAssistRequest.session).toBe('projects/my-project/locations/eu/collections/default_collection/engines/my-engine/sessions/-');
+      expect(capturedBody.streamAssistRequest.query.parts[0].text).toBe('test query');
+      expect(capturedBody.streamAssistRequest.assistGenerationConfig.modelId).toBe('gemini-3.5-flash');
+      expect(capturedBody.streamAssistRequest.toolsSpec.vertexAiSearchSpec.dataStoreSpecs[0].dataStore).toBe('projects/my-project/locations/eu/collections/default_collection/dataStores/ds-1');
+      expect(result.fetched).toBe('Response from widgetStreamAssist');
+    });
+
     it('should preserve the fetched text if scoring throws an error', async () => {
       let fetchCount = 0;
       spyOn(globalThis, 'fetch').and.callFake((input, init) => {

@@ -39,40 +39,60 @@ export class EvalService {
       Promise<ResultRow> {
     const config = this.stateService.getCurrentConfig();
     const baseUrl = config.region === 'global' ?
-        'discoveryengine.googleapis.com' :
-        `${config.region}-discoveryengine.googleapis.com`;
+        'content-discoveryengine.googleapis.com' :
+        `content-${config.region}-discoveryengine.googleapis.com`;
 
-    const url = `https://${baseUrl}/v1/${
-        config.selectedEngine}/assistants/default_assistant:streamAssist`;
+    const url = `https://${baseUrl}/v1alpha/locations/${config.region}/widgetStreamAssist`;
 
-    const body: any = {query: {text: row.query}};
+    const engineId = config.selectedEngine.includes('/') ?
+        config.selectedEngine.split('/').pop()! : config.selectedEngine;
+
+    const streamAssistRequest: any = {
+      session: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/sessions/-`,
+      query: {
+        parts: [{text: row.query}]
+      },
+      answerGenerationMode: 'NORMAL',
+      assistSkippingMode: 'REQUEST_ASSIST',
+      userMetadata: {
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      },
+      toolsSpec: {}
+    };
 
     if (config.selectedModel !== 'auto') {
-      body.generationSpec = {modelId: config.selectedModel};
+      streamAssistRequest.assistGenerationConfig = {modelId: config.selectedModel};
     }
 
-    body.toolsSpec = {};
-
     if (config.selectedDataStores && config.selectedDataStores.length > 0) {
-      body.toolsSpec.vertexAiSearchSpec = {
+      streamAssistRequest.toolsSpec.vertexAiSearchSpec = {
         dataStoreSpecs: config.selectedDataStores.map(
             ds => ({
-              dataStore: `projects/${config.projectId}/locations/${
+              dataStore: ds.includes('/') ? ds : `projects/${config.projectId}/locations/${
                   config.region}/collections/default_collection/dataStores/${
                   ds}`
             }))
       };
     } else if (!config.enableWebSearch) {
-      body.toolsSpec.vertexAiSearchSpec = {};
+      streamAssistRequest.toolsSpec.vertexAiSearchSpec = {};
     }
 
     if (config.enableWebSearch) {
-      body.toolsSpec.webGroundingSpec = {};
+      streamAssistRequest.toolsSpec.webGroundingSpec = {};
     }
+
+    const body: any = {
+      configId: 'default_search_widget_config',
+      additionalParams: {
+        token: '-',
+        origin: 'ORIGIN_UNSPECIFIED'
+      },
+      streamAssistRequest
+    };
 
     const projectId = config.projectId;
     const region = config.region;
-    const engineId = config.selectedEngine;
+    const rawEngineId = config.selectedEngine;
 
     const startTime = Date.now();
     let ttft = 0;
@@ -88,6 +108,7 @@ export class EvalService {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${config.gCloudToken}`,
+          'x-goog-user-project': config.projectId,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
@@ -138,17 +159,19 @@ export class EvalService {
               const item = parsedData[i];
               processedItemsCount++;
 
-              if (item.assistToken) {
-                assistToken = item.assistToken;
+              const assistRes = item.streamAssistResponse || item;
+
+              if (assistRes.assistToken) {
+                assistToken = assistRes.assistToken;
               }
 
-              if (item.answer?.state === 'SKIPPED') {
+              if (assistRes.answer?.state === 'SKIPPED') {
                 const reason =
-                    item.answer?.assistSkippedReasons?.[0] || 'Unknown reason';
+                    assistRes.answer?.assistSkippedReasons?.[0] || 'Unknown reason';
                 fullText = `SKIPPED: ${reason}`;
                 break;
               }
-              const replies = item.answer?.replies || [];
+              const replies = assistRes.answer?.replies || [];
               for (const reply of replies) {
                 const content = reply.groundedContent?.content;
                 if (content) {
