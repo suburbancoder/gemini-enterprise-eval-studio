@@ -38,6 +38,10 @@ export class EvalService {
   async processRow(row: CSVRow, onProgress?: (step: 'fetch'|'score') => void):
       Promise<ResultRow> {
     const config = this.stateService.getCurrentConfig();
+    const projectId = config.projectId;
+    const region = config.region;
+    const rawEngineId = config.selectedEngine;
+
     const baseUrl = config.region === 'global' ?
         'content-discoveryengine.googleapis.com' :
         `content-${config.region}-discoveryengine.googleapis.com`;
@@ -90,15 +94,25 @@ export class EvalService {
       streamAssistRequest
     };
 
-    const projectId = config.projectId;
-    const region = config.region;
-    const rawEngineId = config.selectedEngine;
+    const debugLogs: string[] = [];
+    const log = (msg: string, data?: any) => {
+      const entry = data !== undefined ? `${msg}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}` : msg;
+      debugLogs.push(entry);
+    };
+
+    log(`API URL: ${url}`);
+    log(`Project ID: ${projectId}`);
+    log(`Region: ${region}`);
+    log(`Selected Engine: ${rawEngineId}`);
+    log(`Engine ID: ${engineId}`);
+    log(`Request Payload:\n${JSON.stringify(body, null, 2)}`);
 
     const rawToken = (config.gCloudToken || '').trim();
     const cleanToken = rawToken.replace(/^Bearer\s+/i, '');
 
     if (!cleanToken) {
       const msg = 'Missing Google Cloud Access Token. Please provide a valid token from `gcloud auth print-access-token`.';
+      log(`ERROR: ${msg}`);
       console.error(`[EvalService] ${msg}`);
       throw new Error(msg);
     }
@@ -110,6 +124,8 @@ export class EvalService {
     if (config.projectId) {
       headers['x-goog-user-project'] = config.projectId.trim();
     }
+
+    log(`Request Headers:\n${JSON.stringify({ ...headers, Authorization: `Bearer ${cleanToken.substring(0, 10)}...` }, null, 2)}`);
 
     console.log(`[EvalService] Executing widgetStreamAssist request to: ${url}`, {
       projectId: config.projectId,
@@ -136,10 +152,15 @@ export class EvalService {
         body: JSON.stringify(body)
       });
 
+      log(`HTTP Response Status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
         let errorDetails = '';
+        let parsedErrorObj: any = null;
         try {
           const errorData = await response.json();
+          parsedErrorObj = errorData;
+          log(`HTTP Error Body (JSON):\n${JSON.stringify(errorData, null, 2)}`);
           console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status}:`, JSON.stringify(errorData, null, 2));
           if (errorData.error?.message) {
             errorDetails = `: ${errorData.error.message}`;
@@ -154,11 +175,13 @@ export class EvalService {
         } catch (e) {
           try {
             const rawText = await response.text();
+            log(`HTTP Error Body (Text):\n${rawText}`);
             console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status} (raw body):`, rawText);
             if (rawText) {
               errorDetails = `: ${rawText}`;
             }
           } catch (e2) {
+            log(`HTTP Error Body: (could not read response body)`);
             console.error(`[EvalService] API call failed (${url}) with HTTP ${response.status} (could not read body)`);
           }
         }
@@ -278,15 +301,18 @@ export class EvalService {
         projectId,
         region,
         engineId,
-        scoreError
+        scoreError,
+        debugLogs: debugLogs.join('\n\n')
       };
 
     } catch (error) {
-      console.error('Error processing row:', error);
+      const errorMsg = (error as Error).message || String(error);
+      const debugLogText = debugLogs.join('\n\n');
+      console.error(`[EvalService] Error processing row for query "${row.query}":\nMessage: ${errorMsg}\nVerbose Logs:\n${debugLogText}`);
       return {
         query: row.query,
         golden: row.golden || '',
-        fetched: 'Error: ' + error,
+        fetched: `Error: ${errorMsg}\n\n--- Verbose Debug Info ---\n${debugLogText}`,
         ttft: 0,
         ttfa: 0,
         ttlt: 0,
@@ -294,7 +320,8 @@ export class EvalService {
         assistToken,
         projectId,
         region,
-        engineId
+        engineId,
+        debugLogs: debugLogText
       };
     }
   }

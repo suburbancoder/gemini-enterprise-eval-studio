@@ -33,4 +33,5 @@ export interface ResultRow {
   region?: string;
   engineId?: string;
   scoreError?: string;
+  debugLogs?: string;
 }
