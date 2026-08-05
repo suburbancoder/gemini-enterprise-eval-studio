@@ -16,6 +16,7 @@
 
 import 'zone.js';
 import 'zone.js/testing';
+import '@angular/compiler';
 
 import {expect, vi} from 'vitest';
 

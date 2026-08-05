@@ -46,6 +46,35 @@ architecture:
     are governed solely by the customer's existing agreements with Google Cloud
     for the specific APIs used (e.g., Vertex AI APIs).
 
+## Input Data Format
+
+The application expects a CSV file for evaluation runs. The CSV must include a header row with specific column names.
+
+| Column | Description | Required |
+| :--- | :--- | :--- |
+| `query` | The user query or question to be evaluated. | **Yes** |
+| `golden` | The expected "ground truth" response. Used for auto-scoring. | No (Optional) |
+
+### Example CSV Structure
+
+To handle fields containing **commas** or **double quotes**, follow standard CSV escaping rules:
+1. Wrap the entire field in double quotes (`"..."`).
+2. Represent any internal double quotes by using two double quotes (`""`).
+
+| Scenario | Example Formatting |
+| :--- | :--- |
+| **Contains Commas** | `"Wait, how do I...?"` |
+| **Contains Quotes** | `"The model said ""Hello World"" in the logs."` |
+| **Internal Document Ref** | `"What are the steps? Answer with this document ""Doc Name"""` |
+
+```csv
+query,golden
+"What are the key steps? Answer with this document ""Project Plan 2025""","The key steps include: 1. Goal definition; 2. Context setting."
+"How many data products are available, and who leads the team? Answer with this document ""Data Overview""","There are 15 products, and the team is led by Jane Doe."
+```
+
+An example file, `example_input.csv`, is provided in the root directory.
+
 ## Prerequisites
 
 Before running the application, you will need the following:

@@ -493,14 +493,14 @@ describe('ConfigFormComponent', () => {
 
       const parsed = component.parseWidgetDataForConnectors(mockWidgetData, {name: 'test-engine', displayName: 'Test Engine', dataStoreIds: ['native-ds-789']});
       expect(parsed.length).toBe(3); // Jira + native-ds-789 + Web Search
-      expect(parsed[0].id).toBe('JIRA');
+      expect(parsed[0].id).toBe('jira-connector');
       expect(parsed[0].displayName).toBe('Jira Cloud');
       expect(parsed[0].entityIds).toEqual(['jira-issues-123', 'jira-wiki-456']);
       expect(parsed[1].id).toBe('native-ds-789');
       expect(parsed[2].id).toBe('Web Search');
     });
 
-    it('should group ServiceNow collection components under a single SERVICENOW connector option',
+    it('should NOT group ServiceNow collection components if they have different IDs',
        () => {
          const fixture = TestBed.createComponent(ConfigFormComponent);
          const component = fixture.componentInstance;
@@ -516,39 +516,15 @@ describe('ConfigFormComponent', () => {
                id: 'Catalog',
                displayName: 'Structured data (ServiceNow)',
                dataStoreComponents: [{id: 'sn-cat-2'}]
-             },
-             {
-               id: 'Incident',
-               displayName: 'Structured data (ServiceNow)',
-               dataStoreComponents: [{id: 'sn-inc-3'}]
-             },
-             {
-               id: 'Knowledge',
-               displayName: 'Structured data (ServiceNow)',
-               dataStoreComponents: [{id: 'sn-know-4'}]
-             },
-             {
-               id: 'Users',
-               displayName: 'Structured data (ServiceNow)',
-               dataStoreComponents: [{id: 'sn-usr-5'}]
-             },
-             {
-               id: 'Attachment',
-               displayName: 'Unstructured data (ServiceNow)',
-               dataStoreComponents: [{id: 'sn-att-6'}]
              }
            ]
          };
 
          const parsed =
              component.parseWidgetDataForConnectors(mockWidgetData, undefined);
-         const serviceNowOption = parsed.find(c => c.id === 'SERVICENOW');
-         expect(serviceNowOption).toBeDefined();
-         expect(serviceNowOption!.displayName).toBe('ServiceNow');
-         expect(serviceNowOption!.entityIds).toEqual([
-           'sn-hr-1', 'sn-cat-2', 'sn-inc-3', 'sn-know-4', 'sn-usr-5',
-           'sn-att-6'
-         ]);
+         expect(parsed.length).toBe(3); // ServiceNow + Catalog + Web Search
+         expect(parsed.some(c => c.id === 'Servicenow_hr')).toBeTrue();
+         expect(parsed.some(c => c.id === 'Catalog')).toBeTrue();
        });
 
     it('should toggle all entityIds simultaneously when toggleConnector is called', () => {
@@ -657,14 +633,14 @@ describe('ConfigFormComponent', () => {
         dataStoreIds: ['jira-issues-123', 'confluence-wiki-456', 'native-ds-789']
       });
 
-      expect(parsed.length).toBe(4); // JIRA + CONFLUENCE + native-ds-789 + Web Search
-      expect(parsed[0].id).toBe('JIRA');
-      expect(parsed[1].id).toBe('CONFLUENCE');
+      expect(parsed.length).toBe(4); // jira-connector + confluence-connector + native-ds-789 + Web Search
+      expect(parsed[0].id).toBe('jira-connector');
+      expect(parsed[1].id).toBe('confluence-connector');
       expect(parsed[2].id).toBe('native-ds-789');
       expect(parsed[3].id).toBe('Web Search');
     });
 
-    it('should group multiple Notion collection components and Notion data stores under a single consolidated option', () => {
+    it('should NOT group multiple Notion collection components if they have different IDs', () => {
       const fixture = TestBed.createComponent(ConfigFormComponent);
       const component = fixture.componentInstance;
 
@@ -672,7 +648,7 @@ describe('ConfigFormComponent', () => {
         collectionComponents: [
           {
             id: 'notion-pages',
-            displayName: 'Notion',
+            displayName: 'Notion Pages',
             dataSource: 'NOTION',
             federatedSearchConnectorAuthUri: 'https://auth.example.com/notion',
             connectorAuthState: {
@@ -682,7 +658,7 @@ describe('ConfigFormComponent', () => {
           },
           {
             id: 'notion-databases',
-            displayName: 'Notion Cloud',
+            displayName: 'Notion Databases',
             dataSource: 'NOTION',
             federatedSearchConnectorAuthUri: 'https://auth.example.com/notion',
             connectorAuthState: {
@@ -700,21 +676,21 @@ describe('ConfigFormComponent', () => {
         dataStoreIds: ['notion-pages-ds-1', 'notion-db-ds-2', 'notion_extra_ds_3']
       });
 
-      expect(parsed.length).toBe(2); // Consolidated Notion + Web Search
-      expect(parsed[0].id).toBe('NOTION');
-      expect(parsed[0].displayName).toBe('Notion');
-      expect(parsed[0].entityIds).toEqual(['notion-pages-ds-1', 'notion-db-ds-2', 'notion_extra_ds_3']);
-      expect(parsed[1].id).toBe('Web Search');
+      expect(parsed.length).toBe(4); // notion-pages + notion-databases + notion_extra_ds_3 + Web Search
+      expect(parsed[0].id).toBe('notion-pages');
+      expect(parsed[1].id).toBe('notion-databases');
+      expect(parsed[2].id).toBe('notion_extra_ds_3');
+      expect(parsed[3].id).toBe('Web Search');
     });
 
-    it('should parse collection components with empty dataStoreComponents (e.g. unauthenticated Notion after auth removal)', () => {
+    it('should parse collection components with empty dataStoreComponents and normalize IDs', () => {
       const fixture = TestBed.createComponent(ConfigFormComponent);
       const component = fixture.componentInstance;
 
       const mockWidgetData = {
         collectionComponents: [
           {
-            id: 'collections/eua_placeholder_NOTION',
+            id: 'projects/123/locations/global/collections/default_collection/dataStores/notion-ds',
             displayName: 'Notion',
             dataSource: 'NOTION',
             connectorAuthState: {
@@ -733,9 +709,9 @@ describe('ConfigFormComponent', () => {
       });
 
       expect(parsed.length).toBe(2); // Notion + Web Search
-      expect(parsed[0].id).toBe('NOTION');
+      expect(parsed[0].id).toBe('notion-ds');
       expect(parsed[0].displayName).toBe('Notion');
-      expect(parsed[0].entityIds).toEqual(['collections/eua_placeholder_NOTION']);
+      expect(parsed[0].entityIds).toEqual(['notion-ds']);
     });
   });
 
@@ -747,27 +723,27 @@ describe('ConfigFormComponent', () => {
       component = fixture.componentInstance;
     });
 
-    it('should infer normalized metadata when object has exact dataSource', () => {
-      const meta = component.inferConnectorMetadata({dataSource: 'BIG_QUERY'});
-      expect(meta).toEqual({key: 'BIG_QUERY', displayName: 'BigQuery', dataSource: 'BIG_QUERY'});
+    it('should infer normalized metadata when object has exact dataSource and id', () => {
+      const meta = component.inferConnectorMetadata({id: 'bq-ds', dataSource: 'BIG_QUERY'});
+      expect(meta).toEqual({key: 'bq-ds', displayName: 'BigQuery', dataSource: 'BIG_QUERY'});
     });
 
     it('should infer normalized metadata when object has id or displayName with matching keywords', () => {
       const metaId = component.inferConnectorMetadata({id: 'my-test-confluence-123'});
-      expect(metaId).toEqual({key: 'CONFLUENCE', displayName: 'Confluence', dataSource: 'CONFLUENCE'});
+      expect(metaId).toEqual({key: 'my-test-confluence-123', displayName: 'Confluence', dataSource: 'CONFLUENCE'});
 
-      const metaName = component.inferConnectorMetadata({displayName: 'Custom Cloud Storage Connector'});
-      expect(metaName).toEqual({key: 'GCS', displayName: 'Cloud Storage', dataSource: 'GCS'});
+      const metaName = component.inferConnectorMetadata({id: 'gcs-1', displayName: 'Custom Cloud Storage Connector'});
+      expect(metaName).toEqual({key: 'gcs-1', displayName: 'Custom Cloud Storage Connector', dataSource: 'GCS'});
     });
 
-    it('should infer normalized metadata when input is string with matching keywords', () => {
-      expect(component.inferConnectorMetadata('bq-prod-connector')).toEqual({key: 'BIG_QUERY', displayName: 'BigQuery', dataSource: 'BIG_QUERY'});
-      expect(component.inferConnectorMetadata('salesforce-data')).toEqual({key: 'SALESFORCE', displayName: 'Salesforce', dataSource: 'SALESFORCE'});
+    it('should infer normalized metadata when input is string with matching keywords and return unique key with descriptive name', () => {
+      expect(component.inferConnectorMetadata('bq-prod-connector')).toEqual({key: 'bq-prod-connector', displayName: 'BigQuery: bq-prod-connector', dataSource: 'BIG_QUERY'});
+      expect(component.inferConnectorMetadata('salesforce-data')).toEqual({key: 'salesforce-data', displayName: 'Salesforce: salesforce-data', dataSource: 'SALESFORCE'});
     });
 
-    it('should return fallback metadata for unknown objects and strings', () => {
-      expect(component.inferConnectorMetadata({id: 'custom-ds', displayName: 'Custom Data Store'})).toEqual({key: 'custom-ds', displayName: 'Custom Data Store'});
-      expect(component.inferConnectorMetadata('unknown-connector')).toEqual({key: 'unknown-connector', displayName: 'unknown-connector'});
+    it('should return fallback metadata for unknown objects and strings and normalize IDs', () => {
+      expect(component.inferConnectorMetadata({id: 'projects/p/locations/l/collections/c/dataStores/custom-ds', displayName: 'Custom Data Store'})).toEqual({key: 'custom-ds', displayName: 'Custom Data Store'});
+      expect(component.inferConnectorMetadata('projects/p/locations/l/collections/c/dataStores/unknown-ds')).toEqual({key: 'unknown-ds', displayName: 'unknown-ds'});
     });
   });
 

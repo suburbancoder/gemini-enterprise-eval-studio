@@ -158,6 +158,12 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
       private stateService: StateService, private cdr: ChangeDetectorRef,
       private http: HttpClient) {}
 
+  private normalizeDataStoreId(id: string): string {
+    if (!id) return '';
+    const parts = id.split('/');
+    return parts[parts.length - 1];
+  }
+
   ngOnInit() {
     this.stateService.config$.pipe(takeUntil(this.destroy$))
         .subscribe((c: AppConfig) => {
@@ -225,7 +231,8 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
                                      name: e.name,
                                      displayName: e.displayName || e.name,
                                      modelConfigs: e.modelConfigs,
-                                     dataStoreIds: e.dataStoreIds
+                                     dataStoreIds: (e.dataStoreIds || [])
+                                                       .map(id => this.normalizeDataStoreId(id))
                                    }));
 
               this.stateService.setEngines(this.engines);
@@ -384,37 +391,40 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
    */
   inferConnectorMetadata(componentOrId: { id?: string, displayName?: string, dataSource?: string } | string): { key: string, displayName: string, dataSource?: string } {
     if (typeof componentOrId === 'object') {
+      const normalizedId = this.normalizeDataStoreId(componentOrId.id || '');
       if (componentOrId.dataSource) {
         let name = componentOrId.displayName || componentOrId.dataSource;
         if (!componentOrId.displayName || componentOrId.displayName === componentOrId.dataSource) {
           name = DATA_SOURCE_DISPLAY_NAMES[componentOrId.dataSource] || name;
         }
-        return { key: componentOrId.dataSource, displayName: name, dataSource: componentOrId.dataSource };
+        // Use ID as key to ensure uniqueness for individual items
+        return { key: normalizedId || componentOrId.dataSource, displayName: name, dataSource: componentOrId.dataSource };
       }
-      const lowerId = (componentOrId.id || '').toLowerCase();
+      const lowerId = normalizedId.toLowerCase();
       const lowerName = (componentOrId.displayName || '').toLowerCase();
       const matchedRule = CONNECTOR_RULES.find(rule =>
           rule.matchers.some(m => lowerId.includes(m) || lowerName.includes(m)));
       if (matchedRule) {
         return {
-          key: matchedRule.key,
-          displayName: matchedRule.displayName,
+          key: normalizedId || matchedRule.key,
+          displayName: componentOrId.displayName || matchedRule.displayName,
           dataSource: matchedRule.dataSource
         };
       }
-      return { key: componentOrId.id || 'unknown', displayName: componentOrId.displayName || componentOrId.id || 'Connector' };
+      return { key: normalizedId || 'unknown', displayName: componentOrId.displayName || normalizedId || 'Connector' };
     } else {
-      const lower = componentOrId.toLowerCase();
+      const normalizedId = this.normalizeDataStoreId(componentOrId);
+      const lower = normalizedId.toLowerCase();
       const matchedRule = CONNECTOR_RULES.find(rule =>
           rule.matchers.some(m => lower.includes(m)));
       if (matchedRule) {
         return {
-          key: matchedRule.key,
-          displayName: matchedRule.displayName,
+          key: normalizedId,
+          displayName: matchedRule.displayName + ': ' + normalizedId,
           dataSource: matchedRule.dataSource
         };
       }
-      return { key: componentOrId, displayName: componentOrId };
+      return { key: normalizedId, displayName: normalizedId };
     }
   }
 
@@ -460,10 +470,10 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
       for (const component of widgetData.collectionComponents) {
         if (this.isValidConnector(component)) {
           const entityIds: string[] = (component.dataStoreComponents || [])
-              .map((ds: DataStoreComponent) => ds.id)
-              .filter((id: string | undefined): id is string => !!id);
+              .map((ds: DataStoreComponent) => this.normalizeDataStoreId(ds.id || ''))
+              .filter((id: string): id is string => !!id);
 
-          const effectiveIds = entityIds.length > 0 ? entityIds : (component.id ? [component.id] : []);
+          const effectiveIds = entityIds.length > 0 ? entityIds : (component.id ? [this.normalizeDataStoreId(component.id)] : []);
           effectiveIds.forEach(id => coveredEntityIds.add(id));
           const meta = this.inferConnectorMetadata(component);
           this.upsertConnector(
@@ -474,9 +484,10 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
 
     if (engine && engine.dataStoreIds) {
       for (const ds of engine.dataStoreIds) {
-        if (!coveredEntityIds.has(ds)) {
-          const meta = this.inferConnectorMetadata(ds);
-          this.upsertConnector(connectorsMap, meta, [ds]);
+        const normalizedDs = this.normalizeDataStoreId(ds);
+        if (!coveredEntityIds.has(normalizedDs)) {
+          const meta = this.inferConnectorMetadata(normalizedDs);
+          this.upsertConnector(connectorsMap, meta, [normalizedDs]);
         }
       }
     }
@@ -495,8 +506,9 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
     const connectorsMap = new Map<string, ConnectorOption>();
     if (engine && engine.dataStoreIds) {
       engine.dataStoreIds.forEach(ds => {
-        const meta = this.inferConnectorMetadata(ds);
-        this.upsertConnector(connectorsMap, meta, [ds]);
+        const normalizedDs = this.normalizeDataStoreId(ds);
+        const meta = this.inferConnectorMetadata(normalizedDs);
+        this.upsertConnector(connectorsMap, meta, [normalizedDs]);
       });
     }
     const list = Array.from(connectorsMap.values());
