@@ -52,7 +52,7 @@ export class EvalService {
         config.selectedEngine.split('/').pop()! : config.selectedEngine;
 
     const streamAssistRequest: any = {
-      session: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/sessions/-`,
+      session: `collections/default_collection/engines/${engineId}/sessions/-`,
       query: {
         parts: [{text: row.query}]
       },
@@ -71,11 +71,10 @@ export class EvalService {
     if (config.selectedDataStores && config.selectedDataStores.length > 0) {
       streamAssistRequest.toolsSpec.vertexAiSearchSpec = {
         dataStoreSpecs: config.selectedDataStores.map(
-            ds => ({
-              dataStore: ds.includes('/') ? ds : `projects/${config.projectId}/locations/${
-                  config.region}/collections/default_collection/dataStores/${
-                  ds}`
-            }))
+            ds => {
+              const dsId = ds.includes('/') ? ds.split('/').pop()! : ds;
+              return { dataStore: `collections/default_collection/dataStores/${dsId}` };
+            })
       };
     } else if (!config.enableWebSearch) {
       streamAssistRequest.toolsSpec.vertexAiSearchSpec = {};
@@ -121,9 +120,6 @@ export class EvalService {
       'Authorization': `Bearer ${cleanToken}`,
       'Content-Type': 'application/json'
     };
-    if (config.projectId) {
-      headers['x-goog-user-project'] = config.projectId.trim();
-    }
 
     log(`Request Headers:\n${JSON.stringify({ ...headers, Authorization: `Bearer ${cleanToken.substring(0, 10)}...` }, null, 2)}`);
 
