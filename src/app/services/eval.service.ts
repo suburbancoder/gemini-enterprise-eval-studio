@@ -49,10 +49,15 @@ export class EvalService {
     const engineId = config.selectedEngine.includes('/') ?
         config.selectedEngine.split('/').pop()! : config.selectedEngine;
 
-    const url = `https://${baseUrl}/v1alpha/projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/assistants/default_assistant:streamAssist`;
+    // Google Cloud APIs return the selectedEngine with the Project Number, not Project ID.
+    // The DataStoreSpec strictly requires the Project Number.
+    const projectNumber = config.selectedEngine.startsWith('projects/') ?
+        config.selectedEngine.split('/')[1] : config.projectId;
+
+    const url = `https://${baseUrl}/v1alpha/projects/${projectNumber}/locations/${config.region}/collections/default_collection/engines/${engineId}/assistants/default_assistant:streamAssist`;
 
     const body: any = {
-      session: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/engines/${engineId}/sessions/-`,
+      session: `projects/${projectNumber}/locations/${config.region}/collections/default_collection/engines/${engineId}/sessions/-`,
       query: {
         parts: [{text: row.query}]
       },
@@ -73,7 +78,8 @@ export class EvalService {
         dataStoreSpecs: config.selectedDataStores.map(
             ds => {
               const dsId = ds.includes('/') ? ds.split('/').pop()! : ds;
-              return { dataStore: `projects/${config.projectId}/locations/${config.region}/collections/default_collection/dataStores/${dsId}` };
+              // API Documentation: "The path must include the project number, project id is not supported for this field."
+              return { dataStore: `projects/${projectNumber}/locations/${config.region}/collections/default_collection/dataStores/${dsId}` };
             })
       };
     } else if (!config.enableWebSearch) {
