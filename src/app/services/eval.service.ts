@@ -120,6 +120,9 @@ export class EvalService {
       'Authorization': `Bearer ${cleanToken}`,
       'Content-Type': 'application/json'
     };
+    if (config.projectId) {
+      headers['x-goog-user-project'] = config.projectId.trim();
+    }
 
     log(`Request Headers:\n${JSON.stringify({ ...headers, Authorization: `Bearer ${cleanToken.substring(0, 10)}...` }, null, 2)}`);
 
