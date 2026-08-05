@@ -85,7 +85,7 @@ export class EvalService {
     }
 
     const body: any = {
-      configId: 'default_search_widget_config',
+      configId: config.widgetConfigId || '60b725bb-724a-4585-ae6f-dd120e8dde94',
       additionalParams: {
         token: '-',
         origin: 'ORIGIN_UNSPECIFIED'

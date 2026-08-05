@@ -139,7 +139,8 @@ export class ConfigFormComponent implements OnInit, OnDestroy {
     autoRaterModel: '',
     autoRaterInstruction: '',
     selectedDataStores: [],
-    enableWebSearch: false
+    enableWebSearch: false,
+    widgetConfigId: '60b725bb-724a-4585-ae6f-dd120e8dde94'
   };
 
   autoRaterModels: string[] = ['gemini-3.1-pro-preview', 'gemini-3.5-flash'];

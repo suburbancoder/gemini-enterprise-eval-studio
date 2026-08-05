@@ -247,7 +247,7 @@ describe('EvalService', () => {
       });
 
       expect(capturedUrl).toBe('https://content-eu-discoveryengine.googleapis.com/v1alpha/locations/eu/widgetStreamAssist');
-      expect(capturedBody.configId).toBe('default_search_widget_config');
+      expect(capturedBody.configId).toBe('60b725bb-724a-4585-ae6f-dd120e8dde94');
       expect(capturedBody.additionalParams).toEqual({token: '-', origin: 'ORIGIN_UNSPECIFIED'});
       expect(capturedBody.streamAssistRequest.session).toBe('projects/my-project/locations/eu/collections/default_collection/engines/my-engine/sessions/-');
       expect(capturedBody.streamAssistRequest.query.parts[0].text).toBe('test query');

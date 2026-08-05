@@ -27,6 +27,7 @@ export interface AppConfig {
   autoRaterInstruction: string;
   selectedDataStores: string[];
   enableWebSearch: boolean;
+  widgetConfigId: string;
 }
 
 /**

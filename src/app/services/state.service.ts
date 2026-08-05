@@ -60,7 +60,8 @@ export class StateService {
       autoRaterInstruction:
           'You are an expert evaluator. Compare the fetched response to the golden response for the given query. Calculate a semantic similarity score between 0.0 and 1.0...',
       selectedDataStores: [],
-      enableWebSearch: false
+      enableWebSearch: false,
+      widgetConfigId: '60b725bb-724a-4585-ae6f-dd120e8dde94'
     };
 
     let savedConfig: Partial<AppConfig> = {};
